@@ -35,7 +35,8 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
     file_name = os.path.basename(input_hwpx)
     file_name_no_ext = os.path.splitext(file_name)[0]
     
-    # 1. 템플릿 로드 시도 (명시적 모드 우선)
+    # 1. 문서 분석 및 템플릿 준비
+    # 1-1. 기존 템플릿 로드 시도
     # --template이 없더라도 파일명 기반의 기본 템플릿이 있으면 자동으로 읽어오도록 개선
     default_template = os.path.join(TEMPLATE_DIR, f"template_{file_name_no_ext}.json")
     template_to_use = template_file if template_file else (default_template if os.path.exists(default_template) else None)
@@ -53,7 +54,7 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
         except Exception as e:
             print(f"[!] 템플릿 로드 실패, 직접 분석으로 전환합니다: {e}")
     
-    # 2. 템플릿이 없으면 직접 분석 (기존 로직 보존 및 템플릿 생성)
+    # 1-2. 템플릿 정보가 없는 경우 직접 분석 및 생성
     if not template_mappings:
         print("[*] [분석 모드] 템플릿 정보가 없으므로 문서를 직접 분석합니다.")
         # 분석용 폴더명도 extracted_xml로 통일
@@ -134,7 +135,7 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
         print("[*] 치환 데이터가 입력되지 않아 분석 및 템플릿 생성만 수행합니다.")
         return
 
-    # 3. 텍스트 수정 및 재패키징
+    # 2. 치환 규칙(Mapping) 생성
     print("[*] 치환 규칙을 생성하는 중...")
     
     # modify_source가 파일인지 일반 문자열인지 판별
@@ -142,7 +143,6 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
     
     modify_data = text_modifier.get_json_modifications(
         modify_source, 
-        extracted_texts=all_text_for_analysis, 
         is_file=is_json_file,
         template_mappings=template_mappings
     )
@@ -175,17 +175,18 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
     os.makedirs(temp_proc_dir, exist_ok=True)
 
     try:
-        # 압축 해제
+        # 3. XML 공정
+        # 3-1. HWPX 파일 압축 해제
         await xml_converter.extract_all_hwpx_files(input_hwpx, temp_proc_dir)
         extracted_xml_path = os.path.join(temp_proc_dir, f"{file_name_no_ext}_xml")
         
-        # 수정 (폴더가 아닌 개별 section*.xml 파일을 수정해야 함)
+        # 3-2. XML 파일 내용 치환
         print(f"[*] XML 수정을 시작합니다. ({len(ai_modifications)}개 항목)")
         xml_files = glob.glob(os.path.join(extracted_xml_path, "Contents", "section*.xml"))
         for xml_file in xml_files:
-            xml_editor.modify_xml_with_ai(xml_file, ai_modifications)
+            xml_editor.update_xml_text_content(xml_file, ai_modifications)
         
-        # 재패키징
+        # 4. 최종 재패키징 및 저장
         if not output_hwpx:
             output_hwpx = os.path.join(OUTPUT_DIR, f"[수정]{file_name}")
             
@@ -193,14 +194,14 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
         print(f"[*] 수정 완료: {output_hwpx}")
         
     finally:
-        # 사용자가 XML 확인을 원하시므로 자동 삭제 로직을 임시로 주석 처리합니다.
+        # XML 자동 삭제 로직
         # if os.path.exists(temp_proc_dir):
         #     shutil.rmtree(temp_proc_dir)
         # print(f"[*] XML 확인을 위해 폴더를 유지합니다: {temp_proc_dir}")
         pass
 
 async def main():
-    # 필용 폴더 자동 생성
+    # 필요 폴더 자동 생성
     for directory in [INPUT_DIR, OUTPUT_DIR, TEMPLATE_DIR]:
         os.makedirs(directory, exist_ok=True)
 
