@@ -6,7 +6,9 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-data/
+input_hwpx/
+output_hwpx/
+template_json/
 dist/
 downloads/
 eggs/

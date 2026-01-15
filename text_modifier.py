@@ -192,8 +192,8 @@ def create_replacements_from_template(user_replacements, template_mappings):
                 })
                 continue
                 
-            # actual_key가 아닌 정규화된 키로 패턴 검색 (예: '작성 날짜' -> '작성날짜')
-            pattern_key = "작성날짜" if norm_field == "작성날짜" else actual_key
+            # 템플릿의 실제 키가 아닌, 공백이 제거된 표준 키(norm_field)로 패턴 검색
+            pattern_key = norm_field
             
             if pattern_key in FIELD_PATTERNS:
                 pattern = FIELD_PATTERNS[pattern_key]

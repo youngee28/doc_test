@@ -23,6 +23,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 폴더 경로 상수
+INPUT_DIR = "input_hwpx"
+OUTPUT_DIR = "output_hwpx"
+TEMPLATE_DIR = "template_json"
+
 async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None, template_file=None):
     """
     HWPX 파일에서 텍스트를 추출하거나 템플릿을 사용하여 수정합니다.
@@ -32,7 +37,7 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
     
     # 1. 템플릿 로드 시도 (명시적 모드 우선)
     # --template이 없더라도 파일명 기반의 기본 템플릿이 있으면 자동으로 읽어오도록 개선
-    default_template = f"template_{file_name_no_ext}.json"
+    default_template = os.path.join(TEMPLATE_DIR, f"template_{file_name_no_ext}.json")
     template_to_use = template_file if template_file else (default_template if os.path.exists(default_template) else None)
     
     template_mappings = None
@@ -90,6 +95,8 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
                         return "".join(text_parts)
                     
                     para_text = extract_all_p_text(p).strip()
+                    if not para_text:
+                        continue
                     para_text = para_text.replace("\t", "    ")
                     
                     all_text_for_analysis.append(para_text)
@@ -105,29 +112,8 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
                         if re.search(pattern, text):
                             template_mappings[field] = text
                             break
-            # [추가] 작성날짜를 패턴으로 못 찾은 경우 위치 기반으로 찾기
-            if "작성날짜" not in template_mappings:
-                anchor = "위의 사실을 증명합니다."
-                if anchor in all_text_for_analysis:
-                    idx = all_text_for_analysis.index(anchor)
-                    # 사용자의 요청에 따라 "다다음 줄"(Offset: 2)을 기본 위치로 지정합니다.
-                    target_offset = 2
-                    
-                    # 안전장치: 문서 범위를 벗어나거나 다음 정보가 너무 빨리 나오면 조정
-                    if idx + target_offset >= len(all_text_for_analysis):
-                        target_offset = 1 if idx + 1 < len(all_text_for_analysis) else 0
-                    else:
-                        candidate = all_text_for_analysis[idx + target_offset]
-                        if any(x in candidate for x in ["업    체", "사업자", "대    표"]):
-                            target_offset = 1
-                            
-                    template_mappings["작성날짜"] = {"anchor": anchor, "offset": target_offset}
-                    # 추출된 데이터 로그에도 반영
-                    target_text = all_text_for_analysis[idx + target_offset] if idx + target_offset < len(all_text_for_analysis) else ""
-                    kv_data["작성날짜"] = target_text.strip()
-                    print(f"[*] '작성날짜' 위치를 '{anchor}' 기준 {target_offset}번째 줄(다다음 줄)로 지정했습니다.")
             
-            new_template_path = f"template_{file_name_no_ext}.json"
+            new_template_path = os.path.join(TEMPLATE_DIR, f"template_{file_name_no_ext}.json")
             with open(new_template_path, "w", encoding="UTF-8") as tf:
                 json_lib.dump({
                     "all_text": all_text_for_analysis,
@@ -137,21 +123,16 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
             
             print(f"[*] Extracting structured data from {file_name}...")
             print("\n=== 추출된 데이터 (KV) ===")
-            # 작성날짜 등 특수 필드가 kv_data에 누락되었다면 추가
-            if "작성날짜" in template_mappings and "작성날짜" not in kv_data:
-                mapping = template_mappings["작성날짜"]
-                if isinstance(mapping, dict) and "anchor" in mapping:
-                    idx = all_text_for_analysis.index(mapping["anchor"])
-                    offset = mapping["offset"]
-                    if idx + offset < len(all_text_for_analysis):
-                        kv_data["작성날짜"] = all_text_for_analysis[idx + offset].strip()
-
             print(json_lib.dumps(kv_data, ensure_ascii=False, indent=4))
             print("=========================\n")
 
         finally:
             # 분석 모드인 경우 여기서 폴더를 지울지 결정 (일단 분석 모드는 기존과 동일하게 유지 가능)
             pass
+
+    if not modify_source:
+        print("[*] 치환 데이터가 입력되지 않아 분석 및 템플릿 생성만 수행합니다.")
+        return
 
     # 3. 텍스트 수정 및 재패키징
     print("[*] 치환 규칙을 생성하는 중...")
@@ -172,31 +153,12 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
 
     ai_modifications = []
     
-    # 공백을 무시하고 키를 매칭하기 위해 정규화된 맵 생성
-    normalized_template_keys = {k.replace(" ", ""): k for k in template_mappings.keys()}
-
     for mod_item in modify_data:
         # mod_item: {'original': ..., 'modified': ..., 'field': ...}
         field = mod_item.get("field", "")
         new_value = mod_item.get("modified", "") # text_modifier가 이미 레이블 포함하여 생성함
         mapping_info = mod_item.get("original", "")
         
-        norm_field = field.replace(" ", "")
-        
-        # 템플릿 정보 확인 (위치 기반인지 파악용)
-        if norm_field in normalized_template_keys:
-            actual_key = normalized_template_keys[norm_field]
-            template_info = template_mappings[actual_key]
-            
-            # 위치 기반 매핑인 경우 (dict)
-            if isinstance(template_info, dict) and "anchor" in template_info:
-                ai_modifications.append({
-                    "anchor": template_info["anchor"],
-                    "offset": template_info["offset"],
-                    "modified": str(new_value)
-                })
-                continue
-
         # 일반 텍스트 매핑인 경우: text_modifier가 제공한 값을 그대로 사용
         if isinstance(mapping_info, str) and mapping_info:
             ai_modifications.append({
@@ -225,7 +187,7 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
         
         # 재패키징
         if not output_hwpx:
-            output_hwpx = f"[수정]{file_name}"
+            output_hwpx = os.path.join(OUTPUT_DIR, f"[수정]{file_name}")
             
         xml_repacker.repackage_hwpx(extracted_xml_path, output_hwpx)
         print(f"[*] 수정 완료: {output_hwpx}")
@@ -238,12 +200,16 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
         pass
 
 async def main():
+    # 필용 폴더 자동 생성
+    for directory in [INPUT_DIR, OUTPUT_DIR, TEMPLATE_DIR]:
+        os.makedirs(directory, exist_ok=True)
+
     parser = argparse.ArgumentParser(description="HWPX 텍스트 치환 도구")
-    parser.add_argument("--input", required=True, help="입력 HWPX 파일 경로")
+    parser.add_argument("--input", required=True, help="입력 HWPX 파일 경로 (파일명만 입력 시 input_hwpx 폴더에서 찾음)")
     parser.add_argument("--output", help="출력 HWPX 파일 경로")
     
-    # modify와 data는 상호 배타적
-    group = parser.add_mutually_exclusive_group(required=True)
+    # modify와 data는 상호 배타적 (템플릿 생성만 원할 경우 생략 가능)
+    group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument("--modify", help="치환 규칙 JSON 파일 경로")
     group.add_argument("--data", help="치환 규칙 JSON 문자열")
     
@@ -252,10 +218,15 @@ async def main():
 
     args = parser.parse_args()
     
+    # 입력 파일 경로 처리: 파일명만 있는 경우 INPUT_DIR 결합
+    input_path = args.input
+    if not os.path.dirname(input_path) and not os.path.isabs(input_path):
+        input_path = os.path.join(INPUT_DIR, input_path)
+    
     modify_source = args.modify if args.modify else args.data
     
     await process_hwpx_document(
-        input_hwpx=args.input, 
+        input_hwpx=input_path, 
         output_hwpx=args.output, 
         modify_source=modify_source,
         template_file=args.template
