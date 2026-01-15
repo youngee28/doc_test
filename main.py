@@ -15,6 +15,7 @@ import xml_editor
 import xml_repacker
 import text_modifier
 import data_extractor
+import pdf_repacker
 
 # logging
 logging.basicConfig(
@@ -98,7 +99,6 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
                     para_text = extract_all_p_text(p).strip()
                     if not para_text:
                         continue
-                    para_text = para_text.replace("\t", "    ")
                     
                     all_text_for_analysis.append(para_text)
             
@@ -192,6 +192,12 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
             
         xml_repacker.repackage_hwpx(extracted_xml_path, output_hwpx)
         print(f"[*] 수정 완료: {output_hwpx}")
+        
+        # 5. PDF 자동 변환 (신규 공정)
+        # 수정된 HWPX 파일을 즉시 PDF로 변환하여 사용자 편의성을 높입니다.
+        pdf_path = pdf_repacker.convert_to_pdf(output_hwpx, OUTPUT_DIR)
+        if pdf_path:
+            print(f"[*] PDF 생성 완료: {pdf_path}")
         
     finally:
         # XML 자동 삭제 로직
