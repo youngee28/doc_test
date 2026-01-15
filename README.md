@@ -1,4 +1,4 @@
-# JSON 기반 HWPX 문서 수정 시스템
+# JSON 기반 HWPX 문서 수정 시스템 2026-01-15
 
 AI 호출 없이 JSON 파일로 HWPX 문서의 텍스트를 치환하는 시스템입니다.
 
@@ -38,6 +38,7 @@ python main.py --input 문서.hwpx --modify data.json --output 결과.hwpx
 ```
 
 **지원 필드:**
+
 - `신청인`: 신청인 이름
 - `주민등록번호`: 주민등록번호
 - `주소지`: 주소
@@ -71,6 +72,7 @@ python main.py --input 문서.hwpx --modify data.json --output 결과.hwpx
 ### 간단한 치환
 
 **data.json:**
+
 ```json
 {
   "신청인": "가나디",
@@ -79,6 +81,7 @@ python main.py --input 문서.hwpx --modify data.json --output 결과.hwpx
 ```
 
 **실행:**
+
 ```bash
 python main.py --input 해촉증명서_샘플.hwpx --modify data.json
 ```
@@ -86,6 +89,7 @@ python main.py --input 해촉증명서_샘플.hwpx --modify data.json
 ### 전체 필드 치환
 
 **data_full.json:**
+
 ```json
 {
   "신청인": "홍길동",
@@ -98,6 +102,7 @@ python main.py --input 해촉증명서_샘플.hwpx --modify data.json
 ```
 
 **실행:**
+
 ```bash
 python main.py --input 해촉증명서_샘플.hwpx --modify data_full.json --output 수정본.hwpx
 ```
@@ -129,10 +134,12 @@ python main.py --input 해촉증명서_샘플.hwpx --modify data_full.json --out
 ## 문제 해결
 
 ### JSON 파일을 찾을 수 없습니다
+
 - JSON 파일 경로가 올바른지 확인
 - 상대 경로 또는 절대 경로 사용
 
 ### 치환이 적용되지 않습니다
+
 - JSON 필드명이 정확한지 확인
 - 문서에 해당 필드가 존재하는지 확인
 - 원본-수정 쌍 방식 사용 시 `original` 값이 문서와 정확히 일치하는지 확인
