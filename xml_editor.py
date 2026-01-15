@@ -37,74 +37,10 @@ def modify_xml_with_ai(xml_path, ai_modifications):
 
         original_content = content
         
-        positional_mods = [m for m in ai_modifications if "anchor" in m and "offset" in m]
-        if positional_mods:
-            # 모든 문단 추출
-            p_pattern = re.compile(r"(<hp:p.*?>)(.*?)(</hp:p>)", re.DOTALL)
-            paragraphs = list(p_pattern.finditer(content))
-            
-            pending_replacements = [] # list of (start, end, new_full_p)
-            
-            for mod in positional_mods:
-                anchor = mod["anchor"]
-                offset = mod["offset"]
-                new_val = mod["modified"]
-                
-                # Anchor가 있는 문단 찾기
-                anchor_idx = -1
-                for i, p_match in enumerate(paragraphs):
-                    p_body = p_match.group(2)
-                    if anchor in p_body:
-                        anchor_idx = i
-                        break
-                
-                if anchor_idx != -1 and anchor_idx + offset < len(paragraphs):
-                    target_idx = anchor_idx + offset
-                    target_match = paragraphs[target_idx]
-                    
-                    p_start = target_match.group(1)
-                    p_body = target_match.group(2)
-                    p_end = target_match.group(3)
-                    
-                    # 텍스트 태그가 있는지 확인
-                    t_tags = list(re.finditer(r"<hp:t.*?>.*?</hp:t>", p_body, re.DOTALL))
-                    if not t_tags:
-                        run_match = re.search(r"(<hp:run.*?>)", p_body, re.DOTALL)
-                        if run_match:
-                            new_p_body = p_body.replace(run_match.group(1), run_match.group(1) + f"<hp:t>{new_val}</hp:t>")
-                        else:
-                            new_p_body = f"<hp:run><hp:t>{new_val}</hp:t></hp:run>" + p_body
-                    else:
-                        new_p_body_parts = []
-                        last_end = 0
-                        for i, tag in enumerate(t_tags):
-                            new_p_body_parts.append(p_body[last_end:tag.start()])
-                            cur_s_tag = re.match(r"(<hp:t.*?>)", tag.group(0), re.DOTALL).group(1)
-                            if i == 0:
-                                new_p_body_parts.append(f"{cur_s_tag}{new_val}</hp:t>")
-                            else:
-                                new_p_body_parts.append(f"{cur_s_tag}</hp:t>")
-                            last_end = tag.end()
-                        new_p_body_parts.append(p_body[last_end:])
-                        new_p_body = "".join(new_p_body_parts)
-
-                    new_p_body = re.sub(r"<hp:linesegarray>.*?</hp:linesegarray>", "", new_p_body, flags=re.DOTALL)
-                    new_full_p = p_start + new_p_body + p_end
-                    
-                    pending_replacements.append((target_match.start(), target_match.end(), new_full_p))
-                    print(f"[*] Positional Update Target (Anchor: '{anchor}', Offset: {offset}): -> '{new_val}'")
-
-            # 인덱스 역순으로 정렬하여 문자열 치환 (뒤쪽부터 바꿔야 앞쪽 인덱스가 유지됨)
-            pending_replacements.sort(key=lambda x: x[0], reverse=True)
-            for start, end, new_p in pending_replacements:
-                content = content[:start] + new_p + content[end:]
-
-        # 2. 일반 텍스트 기반 치환 처리
-        # ... (생략 또는 기존 로직 유지)
+        # 1. 텍스트 기반 치환 처리
         p_pattern = re.compile(r"(<hp:p.*?>)(.*?)(</hp:p>)", re.DOTALL)
         
         def replace_p(match):
-            # (기존 replace_p 로직)
             p_start = match.group(1)
             p_body = match.group(2)
             p_end = match.group(3)
@@ -118,7 +54,6 @@ def modify_xml_with_ai(xml_path, ai_modifications):
             modified = False
             
             for mod in ai_modifications:
-                if "anchor" in mod: continue # 위치 기반은 PASS
                 
                 orig = mod.get('original', '').strip()
                 new_val = mod.get('modified', '').strip()
