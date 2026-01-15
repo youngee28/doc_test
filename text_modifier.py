@@ -109,5 +109,6 @@ def get_json_modifications(json_source, is_file=True, template_mappings=None):
     if template_mappings:
         return create_smart_replacements(replacements, template_mappings)
     
-    print("[!] 경고: 템플릿 정보가 없어 스마트 매칭을 수행할 수 없습니다.")
-    return []
+    # 템플릿 정보가 없으면 원본 리스트 그대로 반환 (마스터 템플릿 모드 등을 위함)
+    # print("[!] 경고: 템플릿 정보가 없어 스마트 매칭을 수행할 수 없습니다.")
+    return replacements
