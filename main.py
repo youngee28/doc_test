@@ -92,23 +92,51 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
     current_doc_mappings = {} # {Key: Actual Full Line Text}
     
     if schema_mappings:
+        # "위의 사실을 증명합니다" 위치 찾기 (날짜 식별을 위한 Anchor)
+        anchor_index = -1
+        for i, line in enumerate(all_text_lines):
+            if "위의 사실을 증명합니다" in line.replace(" ", ""):
+                anchor_index = i
+                break
+
         for field_key, label_pattern in schema_mappings.items():
-            # 라벨에서 공백 제거하여 비교 (유연성 확보)
-            clean_label = label_pattern.replace(" ", "").strip()
-            # 끝의 콜론 등은 유지하거나 제거? 일단 포함해서 검색
-            
             found = False
-            for line in all_text_lines:
-                # 라인에서도 공백 제거 후 라벨 포함 여부 확인
-                clean_line = line.replace(" ", "")
-                if clean_label in clean_line:
-                    # [중요] 원본 라인(공백 포함)을 매핑 값으로 저장
-                    current_doc_mappings[field_key] = line
-                    found = True
-                    break # 첫 번째 매칭만 사용
+
+            # 작성날짜 특수 처리: Regex + Anchor 기반 정밀 탐색
+            if field_key == "작성날짜":
+                date_pattern = r"\d{2,4}년\s*\d{1,2}월\s*\d{1,2}일"
+                
+                # 1. Anchor(증명 문구) 이후 구간에서 가장 먼저 나오는 날짜 탐색
+                if anchor_index != -1:
+                    for i in range(anchor_index + 1, len(all_text_lines)):
+                        line = all_text_lines[i]
+                        if re.search(date_pattern, line) and "~" not in line:
+                            current_doc_mappings[field_key] = line
+                            found = True
+                            break
+                
+                # 2. Anchor가 없거나 검색 실패 시, 전체 문서에서 마지막 날짜 줄 선택 (Fallback)
+                if not found:
+                    for line in reversed(all_text_lines):
+                        if re.search(date_pattern, line) and "~" not in line:
+                            current_doc_mappings[field_key] = line
+                            found = True
+                            break
+            
+            # 일반 필드: Label 기반 prefix 매칭
+            else:
+                clean_label = label_pattern.replace(" ", "").strip()
+                for line in all_text_lines:
+                    # 라인에서도 공백 제거 후 라벨로 시작하는지 확인 (정밀 매칭)
+                    clean_line = line.replace(" ", "")
+                    if clean_line.startswith(clean_label):
+                        # [중요] 원본 라인(공백 포함)을 매핑 값으로 저장
+                        current_doc_mappings[field_key] = line
+                        found = True
+                        break # 첫 번째 매칭만 사용
             
             if not found:
-                 # 못 찾았다면 스키마의 값을 그대로 사용 (혹시 정확히 일치할 수도 있으므로)
+                 # 못 찾았다면 스키마의 값을 그대로 사용
                  current_doc_mappings[field_key] = label_pattern
 
     # 4. 치환 규칙 생성
