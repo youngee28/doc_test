@@ -20,7 +20,6 @@ import xml_converter
 import xml_editor
 import xml_repacker
 import text_modifier
-import data_extractor
 import pdf_repacker
 
 # logging
@@ -142,7 +141,7 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
         xml_files_content = glob.glob(os.path.join(extracted_content_path, "Contents", "section*.xml"))
         for xml_file in xml_files_content:
             # xml_base_path를 전달하여 header.xml 스타일 수동 수정(내어쓰기 등)이 가능하도록 함
-            xml_editor.update_xml_text_content(xml_file, ai_modifications, xml_base_path=extracted_content_path)
+            xml_editor.update_xml_text_content(xml_file, ai_modifications)
         
         if not output_hwpx:
             output_hwpx = os.path.join(OUTPUT_DIR, f"[수정]{file_name}")

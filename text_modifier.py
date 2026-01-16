@@ -1,9 +1,6 @@
 import json
 import os
 import re
-from data_extractor import FIELD_PATTERNS
-
-
 def load_json_replacements(json_source, is_file=True):
     """
     JSON 소스(파일 경로 또는 문자열)에서 치환 규칙을 로드합니다.
@@ -51,35 +48,17 @@ def create_smart_replacements(user_replacements, template_mappings):
             actual_key = normalized_template_keys[norm_field]
             original_text = template_mappings[actual_key]
             
-            # 패턴 기반 스마트 검색 (정규화된 표준 키 사용)
-            pattern_key = norm_field
             modified_text = None
             
-            if pattern_key in FIELD_PATTERNS:
-                pattern = FIELD_PATTERNS[pattern_key]
-                match = re.search(pattern, original_text)
-                if match:
-                    # 매칭된 값 추출 (그룹이 있으면 1번 그룹, 없으면 전체)
-                    original_value = match.group(1).strip() if match.groups() else match.group(0).strip()
-                    
-                    if original_value:
-                        modified_text = original_text.replace(original_value, str(new_value), 1)
-                    else:
-                        # 값이 비어있다면 콜론 삽입
-                        sep = ":" if ":" in original_text else ("：" if "：" in original_text else None)
-                        if sep:
-                            parts = original_text.split(sep, 1)
-                            modified_text = f"{parts[0]}{sep} {new_value}"
-            
-            # 패턴 매칭이 안 된 경우 기본 콜론 치환 시도
-            if modified_text is None:
-                if ":" in original_text or "：" in original_text:
-                    sep = ":" if ":" in original_text else "："
-                    parts = original_text.split(sep, 1)
-                    modified_text = f"{parts[0]}{sep} {new_value}"
-                else:
-                    # 최후의 수단: 전체 교체
-                    modified_text = str(new_value)
+            # 기본 구분자(콜론) 기반 치환 시도
+            if ":" in original_text or "：" in original_text:
+                sep = ":" if ":" in original_text else "："
+                parts = original_text.split(sep, 1)
+                # 라벨(parts[0])과 구분자(sep)는 유지하고 값만 교체
+                modified_text = f"{parts[0]}{sep} {new_value}"
+            else:
+                # 구분자가 없는 경우 전체 교체
+                modified_text = str(new_value)
             
             final_replacements.append({
                 "original": original_text,
