@@ -10,6 +10,12 @@ from datetime import datetime
 import json as json_lib
 import xml.etree.ElementTree as ET
 
+# 전역 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
+
 import xml_converter
 import xml_editor
 import xml_repacker
@@ -18,11 +24,7 @@ import data_extractor
 import pdf_repacker
 
 # logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s"
-)
-logger = logging.getLogger(__name__)
+# basicConfig is already done in other modules, but let's ensure it's clean here
 
 # 폴더 경로 상수
 INPUT_DIR = "input_hwpx"
@@ -87,7 +89,7 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
             schema_mappings = full_data.get("mappings", {})
     
     # 3. Dynamic Mapping (Label -> Actual Full Line in Input Doc)
-    # 스키마의 라벨이 포함된 실제 문장을 찾아서 '진짜 template_mappings'을 구축합니다.
+    # 스키마의 라벨이 포함된 실제 문장을 찾아서 '진짜 template_mappings' 구축
     current_doc_mappings = {} # {Key: Actual Full Line Text}
     
     if schema_mappings:
@@ -133,13 +135,14 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
     if not ai_modifications:
         print("[!] 적용할 치환 내용이 없습니다.")
 
-    # 5. XML 수정 및 저장
+    # 5. XML 수정 및 레이아웃 최적화 수행
     try:
-        if ai_modifications:
-            print(f"[*] XML 수정 수행 ({len(ai_modifications)}개 항목)")
-            xml_files_content = glob.glob(os.path.join(extracted_content_path, "Contents", "section*.xml"))
-            for xml_file in xml_files_content:
-                xml_editor.update_xml_text_content(xml_file, ai_modifications)
+        # ai_modifications가 없어도 하단 레이아웃 보정을 위해 항상 실행합니다.
+        print(f"[*] XML 데이터 수정 및 레이아웃 최적화 수행...")
+        xml_files_content = glob.glob(os.path.join(extracted_content_path, "Contents", "section*.xml"))
+        for xml_file in xml_files_content:
+            # xml_base_path를 전달하여 header.xml 스타일 수동 수정(내어쓰기 등)이 가능하도록 함
+            xml_editor.update_xml_text_content(xml_file, ai_modifications, xml_base_path=extracted_content_path)
         
         if not output_hwpx:
             output_hwpx = os.path.join(OUTPUT_DIR, f"[수정]{file_name}")
@@ -155,7 +158,7 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
         pass
 
 async def main():
-    for directory in [INPUT_DIR, OUTPUT_DIR, TEMPLATE_DIR]:
+    for directory in [INPUT_DIR, OUTPUT_DIR]:
         os.makedirs(directory, exist_ok=True)
 
     parser = argparse.ArgumentParser(description="HWPX 문서 생성 엔진 (Target Search Mode)")
