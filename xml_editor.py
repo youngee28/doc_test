@@ -86,9 +86,9 @@ def update_paragraph_style(xml_path, para_id, style_modifications):
         logger.error(f"스타일 수정 중 오류 발생 ({xml_path}): {e}")
         return False
 
-def update_paragraph_margin(xml_path, para_id, left_margin_mm):
+def update_paragraph_margin_direct(xml_path, para_id, margin_hwpunit):
     """
-    특정 paraPr의 왼쪽 여백을 mm 단위로 수정합니다.
+    특정 paraPr의 왼쪽 여백을 HWPUNIT 수치로 직접 수정합니다.
     """
     try:
         if not os.path.exists(xml_path):
@@ -100,21 +100,20 @@ def update_paragraph_margin(xml_path, para_id, left_margin_mm):
         ns_hh = "{http://www.hancom.co.kr/hwpml/2011/head}"
         ns_hc = "{http://www.hancom.co.kr/hwpml/2011/core}"
         
-        # mm -> HWPUNIT 변환 (1mm = 283.46 HWPUNIT)
-        left_val = str(int(left_margin_mm * 283.46))
+        val_str = str(int(margin_hwpunit))
 
         for para_pr in root.findall(f".//{ns_hh}paraPr"):
             if para_pr.get("id") == str(para_id):
-                # hh:margin 요소들 찾기 (hp:switch 내부에 여러 개 있을 수 있음)
                 margins = para_pr.findall(f".//{ns_hh}margin")
                 for margin in margins:
-                    # 왼쪽 여백(left)과 들여쓰기(intent) 조정
+                    # 왼쪽 여백 설정
                     left_node = margin.find(f"{ns_hc}left")
                     if left_node is not None:
-                        left_node.set("value", left_val)
+                        left_node.set("value", val_str)
                         left_node.set("unit", "HWPUNIT")
                         modified_any = True
                     
+                    # 들여쓰기를 0으로 초기화하여 정확한 시작 위치 보장
                     intent_node = margin.find(f"{ns_hc}intent")
                     if intent_node is not None:
                         intent_node.set("value", "0")
@@ -122,7 +121,7 @@ def update_paragraph_margin(xml_path, para_id, left_margin_mm):
                         modified_any = True
                 
                 if modified_any:
-                    print(f"[*] Margin Updated (ID:{para_id}): left={left_margin_mm}mm ({left_val} HWPUNIT)")
+                    print(f"[*] Margin Updated (ID:{para_id}): value={val_str} HWPUNIT")
 
         if modified_any:
             _save_xml(xml_path, root)
@@ -130,7 +129,7 @@ def update_paragraph_margin(xml_path, para_id, left_margin_mm):
         return False
 
     except Exception as e:
-        logger.error(f"여백 수정 중 오류 발생 ({xml_path}): {e}")
+        logger.error(f"여백 수치 주입 중 오류 발생 ({xml_path}): {e}")
         return False
 
 def clear_paragraph_layout(xml_path, para_id):
@@ -159,6 +158,9 @@ def clear_paragraph_layout(xml_path, para_id):
             return True
         return False
 
+    except Exception as e:
+        logger.error(f"레이아웃 삭제 중 오류 발생 ({xml_path}): {e}")
+        return False
     except Exception as e:
         logger.error(f"레이아웃 삭제 중 오류 발생 ({xml_path}): {e}")
         return False

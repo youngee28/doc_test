@@ -31,6 +31,18 @@ OUTPUT_DIR = "output_hwpx"
 TEMPLATE_DIR = "template_json"
 MASTER_TEMPLATE_PATH = "master_template.json"
 
+def calculate_margin_hwpunit(ratio):
+    """
+    A4 고정 규격 대비 비율(ratio: 0.0 ~ 1.0)에 따른 여백(HWPUNIT)을 계산합니다.
+    A4_WIDTH = 148800, BASE_MARGIN_LEFT = 21260
+    """
+    A4_WIDTH = 148800
+    BASE_MARGIN = 21260
+    # 전체 너비에서의 목표 지점 계산 후 기본 여백 차감
+    target_val = int((A4_WIDTH * ratio) - BASE_MARGIN)
+    # 수치가 음수일 경우 0으로 제한
+    return max(0, target_val)
+
 async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None, template_file=None):
     """
     HWPX 파일을 처리합니다.
@@ -169,12 +181,17 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
         if os.path.exists(header_xml):
             # ID:15 우측 정렬 강제
             xml_editor.update_paragraph_style(header_xml, 15, {"horizontal": "RIGHT"})
-            # [복구] ID:17 왼쪽 여백을 65mm로 변경
-            xml_editor.update_paragraph_margin(header_xml, 17, 65)
+            # xml_editor.update_paragraph_style(header_xml, 17, {"horizontal": "JUSTIFY"})
+            
+            # [추가] ID:17 비율 기반 여백 주입
+            target_ratio = 0.40
+            margin_val = calculate_margin_hwpunit(target_ratio)
+            print(f"[*] Dynamic Ratio Calculation: Ratio={target_ratio} -> TargetValue={margin_val} HWPUNIT")
+            xml_editor.update_paragraph_margin_direct(header_xml, 17, margin_val)
 
         xml_files_content = glob.glob(os.path.join(extracted_content_path, "Contents", "section*.xml"))
         for xml_file in xml_files_content:
-            # [복구] ID:17 레이아웃 캐시 삭제
+            # [추가] ID:17 레이아웃 캐시 삭제 (비율 정렬 적용 강제)
             xml_editor.clear_paragraph_layout(xml_file, 17)
             
             # xml_base_path를 전달하여 header.xml 스타일 수동 수정(내어쓰기 등)이 가능하도록 함
