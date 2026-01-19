@@ -183,7 +183,7 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
             xml_editor.update_paragraph_style(header_xml, 15, {"horizontal": "RIGHT"})
             # xml_editor.update_paragraph_style(header_xml, 17, {"horizontal": "JUSTIFY"})
             
-            # [추가] ID:17 비율 기반 여백 주입
+            # [추가] ID:17 비율 기반 여백 설정
             target_ratio = 0.40
             margin_val = calculate_margin_hwpunit(target_ratio)
             print(f"[*] Dynamic Ratio Calculation: Ratio={target_ratio} -> TargetValue={margin_val} HWPUNIT")
