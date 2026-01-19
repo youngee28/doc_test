@@ -12,12 +12,14 @@ NAMESPACES = {
     "ha": "http://www.hancom.co.kr/hwpml/2011/app",
     "hw": "http://www.hancom.co.kr/hwpml/2011/word",
     "hc": "http://www.hancom.co.kr/hwpml/2011/core",
+    "hh": "http://www.hancom.co.kr/hwpml/2011/head",
+    "hm": "http://www.hancom.co.kr/hwpml/2011/master-page",
+    "hhs": "http://www.hancom.co.kr/hwpml/2011/history",
 }
 
 # ET 전역 네임스페이스 등록 (ns0 부여 방지 및 HWPX 호환성 유지)
 for prefix, uri in NAMESPACES.items():
-    if not prefix.startswith("ns"): 
-        ET.register_namespace(prefix, uri)
+    ET.register_namespace(prefix, uri)
 
 def update_xml_text_content(xml_path, modifications):
     """
@@ -43,6 +45,122 @@ def update_xml_text_content(xml_path, modifications):
         
     except Exception as e:
         logger.error(f"XML 수정 중 오류 발생 ({xml_path}): {e}")
+        return False
+
+def update_paragraph_style(xml_path, para_id, style_modifications):
+    """
+    특정 paraPr(문단 스타일)의 속성(예: horizontal align)을 수정합니다.
+    """
+    try:
+        if not os.path.exists(xml_path):
+            return False
+
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        modified_any = False
+
+        # hh 네임스페이스 정의
+        ns_hh = "{http://www.hancom.co.kr/hwpml/2011/head}"
+        
+        # 모든 paraPr 요소 중 id가 일치하는 것 탐색
+        for para_pr in root.findall(f".//{ns_hh}paraPr"):
+            if para_pr.get("id") == str(para_id):
+                # hh:align 요소 찾기
+                align_node = para_pr.find(f"{ns_hh}align")
+                if align_node is None:
+                    align_node = ET.SubElement(para_pr, f"{ns_hh}align")
+                
+                for attr, value in style_modifications.items():
+                    old_val = align_node.get(attr)
+                    if old_val != value:
+                        align_node.set(attr, value)
+                        modified_any = True
+                        print(f"[*] Style Updated (ID:{para_id}): {attr}='{old_val}' -> '{value}'")
+
+        if modified_any:
+            _save_xml(xml_path, root)
+            return True
+        return False
+
+    except Exception as e:
+        logger.error(f"스타일 수정 중 오류 발생 ({xml_path}): {e}")
+        return False
+
+def update_paragraph_margin(xml_path, para_id, left_margin_mm):
+    """
+    특정 paraPr의 왼쪽 여백을 mm 단위로 수정합니다.
+    """
+    try:
+        if not os.path.exists(xml_path):
+            return False
+
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        modified_any = False
+        ns_hh = "{http://www.hancom.co.kr/hwpml/2011/head}"
+        ns_hc = "{http://www.hancom.co.kr/hwpml/2011/core}"
+        
+        # mm -> HWPUNIT 변환 (1mm = 283.46 HWPUNIT)
+        left_val = str(int(left_margin_mm * 283.46))
+
+        for para_pr in root.findall(f".//{ns_hh}paraPr"):
+            if para_pr.get("id") == str(para_id):
+                # hh:margin 요소들 찾기 (hp:switch 내부에 여러 개 있을 수 있음)
+                margins = para_pr.findall(f".//{ns_hh}margin")
+                for margin in margins:
+                    # 왼쪽 여백(left)과 들여쓰기(intent) 조정
+                    left_node = margin.find(f"{ns_hc}left")
+                    if left_node is not None:
+                        left_node.set("value", left_val)
+                        left_node.set("unit", "HWPUNIT")
+                        modified_any = True
+                    
+                    intent_node = margin.find(f"{ns_hc}intent")
+                    if intent_node is not None:
+                        intent_node.set("value", "0")
+                        intent_node.set("unit", "HWPUNIT")
+                        modified_any = True
+                
+                if modified_any:
+                    print(f"[*] Margin Updated (ID:{para_id}): left={left_margin_mm}mm ({left_val} HWPUNIT)")
+
+        if modified_any:
+            _save_xml(xml_path, root)
+            return True
+        return False
+
+    except Exception as e:
+        logger.error(f"여백 수정 중 오류 발생 ({xml_path}): {e}")
+        return False
+
+def clear_paragraph_layout(xml_path, para_id):
+    """
+    특정 스타일을 사용하는 문단의 레이아웃 캐시(linesegarray)를 삭제합니다.
+    """
+    try:
+        if not os.path.exists(xml_path):
+            return False
+
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        modified_any = False
+        ns_hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
+        for p in root.findall(f".//{ns_hp}p"):
+            if p.get("paraPrIDRef") == str(para_id):
+                lsa = p.find(f"{ns_hp}linesegarray")
+                if lsa is not None:
+                    p.remove(lsa)
+                    modified_any = True
+
+        if modified_any:
+            _save_xml(xml_path, root)
+            print(f"[*] Layout Cache Cleared (Style:{para_id}, File:{os.path.basename(xml_path)})")
+            return True
+        return False
+
+    except Exception as e:
+        logger.error(f"레이아웃 삭제 중 오류 발생 ({xml_path}): {e}")
         return False
 
 

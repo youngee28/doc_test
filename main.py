@@ -162,12 +162,21 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
     if not ai_modifications:
         print("[!] 적용할 치환 내용이 없습니다.")
 
-    # 5. XML 수정 및 레이아웃 최적화 수행
+        # 5. XML 수정 및 레이아웃 최적화 수행
     try:
-        # ai_modifications가 없어도 하단 레이아웃 보정을 위해 항상 실행합니다.
-        print(f"[*] XML 데이터 수정 및 레이아웃 최적화 수행...")
+        # print(f"[*] XML 데이터 수정 및 레이아웃 최적화 수행...")
+        header_xml = os.path.join(extracted_content_path, "Contents", "header.xml")
+        if os.path.exists(header_xml):
+            # ID:15 우측 정렬 강제
+            xml_editor.update_paragraph_style(header_xml, 15, {"horizontal": "RIGHT"})
+            # [복구] ID:17 왼쪽 여백을 65mm로 변경
+            xml_editor.update_paragraph_margin(header_xml, 17, 65)
+
         xml_files_content = glob.glob(os.path.join(extracted_content_path, "Contents", "section*.xml"))
         for xml_file in xml_files_content:
+            # [복구] ID:17 레이아웃 캐시 삭제
+            xml_editor.clear_paragraph_layout(xml_file, 17)
+            
             # xml_base_path를 전달하여 header.xml 스타일 수동 수정(내어쓰기 등)이 가능하도록 함
             xml_editor.update_xml_text_content(xml_file, ai_modifications)
         
