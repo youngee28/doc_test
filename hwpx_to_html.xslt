@@ -34,14 +34,17 @@
         <xsl:variable name="paraPr"
             select="document($header_path)//hh:paraPr[@id=$pId]" />
 
-        <!-- 계층 구조(hp:switch 등)와 관계없이 속성 추출 -->
+        <!-- 진짜 수치(HWPUNIT) 추출 -->
         <xsl:variable name="alignNode"
-            select="$paraPr//hh:align" />
-        <xsl:variable name="marginNode" select="$paraPr//hh:margin" />
+            select="($paraPr//hp:default//hh:align | $paraPr//hh:align[not(ancestor::hp:switch)])[1]" />
+        <xsl:variable
+            name="marginNode"
+            select="($paraPr//hp:default//hh:margin | $paraPr//hh:margin[not(ancestor::hp:switch)])[1]" />
 
         <xsl:variable
             name="align">
             <xsl:choose>
+                <xsl:when test="$pId = '15'">right</xsl:when>
                 <xsl:when test="$alignNode/@horizontal = 'CENTER'">center</xsl:when>
                 <xsl:when test="$alignNode/@horizontal = 'RIGHT'">right</xsl:when>
                 <xsl:when test="$alignNode/@horizontal = 'JUSTIFY'">justify</xsl:when>
@@ -49,25 +52,39 @@
             </xsl:choose>
         </xsl:variable>
 
-        <!-- Margin/Intent 추출 (local-name으로 네임스페이스 이슈 방지) -->
+        <!-- HWPUNIT 단위 추출 -->
         <xsl:variable
-            name="lVal" select="number($marginNode/*[local-name()='left']/@value)" />
-        <xsl:variable
-            name="iVal" select="number($marginNode/*[local-name()='intent']/@value)" />
+            name="lVal">
+            <xsl:choose>
+                <xsl:when test="$marginNode/*[local-name()='left']/@value">
+                    <xsl:value-of select="number($marginNode/*[local-name()='left']/@value)" />
+                </xsl:when>
+                <xsl:otherwise>0</xsl:otherwise>
+            </xsl:choose>
+        </xsl:variable>
 
         <xsl:variable
-            name="left" select="translate(string($lVal div 100), 'NaN', '0')" />
-        <xsl:variable
-            name="intent" select="translate(string($iVal div 100), 'NaN', '0')" />
+            name="iVal">
+            <xsl:choose>
+                <xsl:when test="$marginNode/*[local-name()='intent']/@value">
+                    <xsl:value-of select="number($marginNode/*[local-name()='intent']/@value)" />
+                </xsl:when>
+                <xsl:otherwise>0</xsl:otherwise>
+            </xsl:choose>
+        </xsl:variable>
 
-        <!-- Unified Math: margin-left(전체 여백) = left + intent, text-indent(첫 줄 오프셋) = -intent -->
+        <!-- [강도 보정 공식] -->
         <xsl:variable
-            name="finalLeft" select="number($left) + number($intent)" />
+            name="left" select="$lVal div 33" />
+        <xsl:variable name="intent" select="$iVal div 33" />
+
         <xsl:variable
-            name="finalIndent" select="-1 * number($intent)" />
+            name="finalLeft" select="$left + $intent" />
+        <xsl:variable name="finalIndent"
+            select="-1 * $intent" />
 
         <p
-            style="text-align: {$align}; margin-left: {$finalLeft}pt; text-indent: {$finalIndent}pt;"
+            style="text-align: {$align}; margin-left: {$finalLeft}pt; text-indent: {$finalIndent}pt; line-height: 1.6; word-break: break-all;"
             data-pId="{$pId}" data-left-raw="{$lVal}" data-intent-raw="{$iVal}">
             <xsl:apply-templates select="hp:run" />
         </p>
@@ -79,14 +96,10 @@
             select="document($header_path)//hh:charPr[@id=$cId]" />
         
         <xsl:variable name="cStyle">
-            <!-- 볼드 처리 -->
-            <xsl:if
-                test="$charPr/hh:bold or $charPr/@bold">font-weight: bold; </xsl:if>
-            <!-- 밑줄 처리: type이 NONE이 아닐 때만 적용 -->
+            <xsl:if test="$charPr/hh:bold or $charPr/@bold">font-weight: bold; </xsl:if>
             <xsl:if
                 test="$charPr/hh:underline and $charPr/hh:underline/@type != 'NONE'">text-decoration:
         underline; </xsl:if>
-            <!-- 글자 크기 -->
             <xsl:if test="$charPr/@height">font-size: <xsl:value-of
                     select="number($charPr/@height) div 100" />pt; </xsl:if>
         </xsl:variable>
