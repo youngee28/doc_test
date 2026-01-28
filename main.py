@@ -194,6 +194,10 @@ async def process_hwpx_document(input_hwpx, output_hwpx=None, modify_source=None
             # [추가] ID:17 레이아웃 캐시 삭제 (비율 정렬 적용 강제)
             xml_editor.clear_paragraph_layout(xml_file, 17)
             
+            # [추가] ID:17 이미지 절대 위치 고정 (방법 2)
+            # 115000: 종이 왼쪽 끝 기준 약 75% 지점 (직인 위치)
+            xml_editor.fix_image_position_absolute(xml_file, 17, 10000)
+            
             # xml_base_path를 전달하여 header.xml 스타일 수동 수정(내어쓰기 등)이 가능하도록 함
             xml_editor.update_xml_text_content(xml_file, ai_modifications)
         

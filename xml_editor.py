@@ -161,9 +161,55 @@ def clear_paragraph_layout(xml_path, para_id):
     except Exception as e:
         logger.error(f"레이아웃 삭제 중 오류 발생 ({xml_path}): {e}")
         return False
-    except Exception as e:
-        logger.error(f"레이아웃 삭제 중 오류 발생 ({xml_path}): {e}")
+
+def fix_image_position_absolute(xml_path, target_para_id, target_x_hwpunit, target_y_hwpunit=None):
+    """
+    특정 문단 내의 이미지(hp:pic) 위치를 종이(PAPER) 기준으로 고정합니다.
+    문단 여백 변화에 영향을 받지 않게 하기 위함입니다.
+    """
+    try:
+        if not os.path.exists(xml_path):
+            return False
+
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        modified_any = False
+        ns_hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
+        for p in root.findall(f".//{ns_hp}p"):
+            if p.get("paraPrIDRef") == str(target_para_id):
+                # 문단 내 모든 이미지 탐색
+                pics = p.findall(f".//{ns_hp}pic")
+                for pic in pics:
+                    pos = pic.find(f"{ns_hp}pos")
+                    if pos is not None:
+                        # 기준을 '종이(PAPER)'로 변경 (문단 여백 무시)
+                        pos.set("horzRelTo", "PAPER")
+                        # horzAlign이 'LEFT' 등이면 오프셋이 무시될 수 있으므로 'NONE'으로 설정
+                        pos.set("horzAlign", "NONE")
+                        # 지정된 절대 좌표 주입 (예: 기존 35578 + 여백 고려한 적절한 절대 위치)
+                        pos.set("horzOffset", str(int(target_x_hwpunit)))
+                        
+                        if target_y_hwpunit is not None:
+                            # 필요시 수직 위치도 고정
+                            pos.set("vertRelTo", "PAPER")
+                            pos.set("vertOffset", str(int(target_y_hwpunit)))
+                        
+                        # 텍스트와의 관계를 '글 앞으로' 설정하여 레이아웃 충돌 방지
+                        pic.set("textWrap", "IN_FRONT_OF_TEXT")
+                        
+                        modified_any = True
+                        print(f"[*] Image Position Locked (Para:{target_para_id}): X={target_x_hwpunit} PAPER")
+
+        if modified_any:
+            _save_xml(xml_path, root)
+            return True
         return False
+
+    except Exception as e:
+        logger.error(f"이미지 위치 고정 중 오류 발생 ({xml_path}): {e}")
+        return False
+
 
 
 def _save_xml(path, root):
