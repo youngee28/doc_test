@@ -185,8 +185,8 @@ def fix_image_position_absolute(xml_path, target_para_id, target_x_hwpunit, targ
                     if pos is not None:
                         # 기준을 '종이(PAPER)'로 변경 (문단 여백 무시)
                         pos.set("horzRelTo", "PAPER")
-                        # horzAlign이 'LEFT' 등이면 오프셋이 무시될 수 있으므로 'NONE'으로 설정
-                        pos.set("horzAlign", "NONE")
+                        # 표준 규격인 'LEFT'로 복구 (NONE은 오류 유발)
+                        pos.set("horzAlign", "LEFT")
                         # 지정된 절대 좌표 주입 (예: 기존 35578 + 여백 고려한 적절한 절대 위치)
                         pos.set("horzOffset", str(int(target_x_hwpunit)))
                         
